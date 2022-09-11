@@ -1,0 +1,9 @@
+setup.py
+gym_nike/__init__.py
+gym_nike.egg-info/PKG-INFO
+gym_nike.egg-info/SOURCES.txt
+gym_nike.egg-info/dependency_links.txt
+gym_nike.egg-info/requires.txt
+gym_nike.egg-info/top_level.txt
+gym_nike/envs/__init__.py
+gym_nike/envs/nike_env.py

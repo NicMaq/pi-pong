@@ -62,10 +62,7 @@ class NikeEnv(gym.Env):
         self.previous_points.append(self.start_point)
 
         self.num_forms_discovered = 0 
-        
-
-        print('End Init')
-                                    
+                                           
 
     def step(self, action):
 

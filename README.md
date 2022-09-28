@@ -1,7 +1,10 @@
 # gym-nike
-Clone the repository: 
+Clone the repository:
+
 git clone git@github.com:NicMaq/gym-nike.git  
-Register the new gym env: 
+
+Register the new gym env:
+
 cd gym-nike/  
 pip install -e .  
 

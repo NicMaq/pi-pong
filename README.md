@@ -1,7 +1,7 @@
 # gym-nike
 Clone the repository:
 
-git clone git@github.com:NicMaq/gym-nike.git  
+git clone git@github.com:Username/gym-nike.git  
 
 Register the new gym env:
 

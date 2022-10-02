@@ -166,7 +166,7 @@ class NikeEnv(gym.Env):
         #for idx, frame_idx in enumerate(frames): 
         #    frames[idx] = resize(frame_idx, (180, 320, 3), preserve_range=True, order=0).astype(np.uint8)
         
-        imageio.mimsave(f'{SAVE_DIR}{"/Nike-{}-{}-Forms-{}.gif".format(self.now, self.episode_reward, num_forms_discovered)}', self.raw_images, duration=1/30)
+        imageio.mimsave(f'{SAVE_DIR}{"/Nike-{}-{}-Forms-{}.gif".format(self.now, self.episode_reward, self.num_forms_discovered)}', self.raw_images, duration=1/30)
 
 
     def find_points(self):

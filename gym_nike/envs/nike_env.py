@@ -5,10 +5,13 @@ import numpy as np
 import cv2
 from skimage.transform import resize
 import imageio
+import tensorflow as tf
+from datetime import datetime
 
 
 N_DISCRETE_ACTIONS = 4 #Go up (0), right (1), down (2) and left (3)
 N_CHANNELS = 3
+SAVE_DIR = '/Users/nicolasmaquaire/Workspace/ml/openai_logs/Nike'
 
 
 class NikeEnv(gym.Env):
@@ -18,6 +21,8 @@ class NikeEnv(gym.Env):
     def __init__(self, config):
 
         super(NikeEnv, self).__init__()
+
+        self.now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 
         self.nsteps = 0
 
@@ -29,12 +34,14 @@ class NikeEnv(gym.Env):
         print(type(self.observation_init))
         print(self.observation_init.shape)
         self.observation = self.observation_init.copy()
+        self.raw_images = []
+        self.raw_images.append(self.observation.copy())
 
         self.height = self.observation_init.shape[0]
         self.width = self.observation_init.shape[1]
 
         self.observation_space = spaces.Box(low=0, high=255,
-                                            shape=(self.height, self.width, N_CHANNELS), dtype=np.uint8)
+                                            shape=(self.height, self.width, 1), dtype=np.uint8)
         
         # The forms are on channel green 
         self.forms = self.observation[:,:,1].copy()
@@ -49,6 +56,7 @@ class NikeEnv(gym.Env):
 
         # The start/stop points are the uppest form point for start the lowest for stop 
         self.start_point, _ = self.find_points()
+        #self.start_point = (5, self.width//2)  #self.find_points()
         print('self.start_point is ', self.start_point)
         #print('self.end_point is ', self.end_point)
         self.last_point = self.start_point
@@ -62,29 +70,44 @@ class NikeEnv(gym.Env):
         self.previous_points.append(self.start_point)
 
         self.num_forms_discovered = 0 
+        self.max_forms_discovered = 0
                                            
 
     def step(self, action):
 
-        self.nsteps += 1
+        self.nsteps += 1        
+        #print('action', action)
+        #print('self.nsteps', self.nsteps)
 
         isAlreadyVisited, isOnForm, isOnNewForm, isOnPerimeter, isEndForm = self.new_landing_desc(action)
         # Add new point to self.observation
         self.observation[self.last_point[0],self.last_point[1],0]=255
         #self.raw_images.append(self.observation.copy())
+        self.raw_images.append(self.observation.copy())
 
         step_reward = self.calculate_reward(isAlreadyVisited, isOnForm, isOnNewForm, isOnPerimeter, isEndForm)
         self.episode_reward += step_reward
+        #truncated = self.nsteps > 5000
         done = isOnPerimeter or isEndForm or self.nsteps > 5000
+
+        #if isOnNewForm or isEndForm or isOnForm or isOnPerimeter: 
+        #    self.generate_gif()        
+
+        if done: 
+            print(f'{"Episode ended after {} steps - score is {} ".format(self.nsteps, self.episode_reward)}')
+            print(f'{"Trajectory ended bc: isOnPerimeter={} isEndForm={} ".format(isOnPerimeter, isEndForm)}')
+
         info = {'steps': self.nsteps, 'discovered_forms': self.num_forms_discovered, 'success': isEndForm}
 
-        return self.observation, step_reward, done, info
+        return self.process_obs(self.observation), step_reward, done, info
 
 
     def reset(self):
         self.nsteps = 0
         self.observation = self.observation_init.copy()       
         self.new_forms = self.forms.copy()
+        self.raw_images = []
+        self.raw_images.append(self.observation.copy())
         #self.new_forms = self.remove_form(self.new_forms.copy(), self.last_point)
         self.num_forms_discovered = 0
         self.current_length = 0
@@ -93,7 +116,7 @@ class NikeEnv(gym.Env):
         self.last_point = self.start_point
         self.previous_points.append(self.start_point)
 
-        return self.observation  # reward, done, info can't be included
+        return self.process_obs(self.observation)  # reward, done, info can't be included
 
 
     def render(self, mode='human'):
@@ -132,11 +155,18 @@ class NikeEnv(gym.Env):
         #if new point on new form then penalty of +10
         if isOnNewForm: step_reward += 5 + self.num_forms_discovered * 2
         #if new point end_point then penalty of +100
-        if isEndForm: step_reward += 100        
+        if isEndForm: step_reward += 100     
 
         #print('step_reward', step_reward)
 
         return step_reward
+
+    def generate_gif(self):
+
+        #for idx, frame_idx in enumerate(frames): 
+        #    frames[idx] = resize(frame_idx, (180, 320, 3), preserve_range=True, order=0).astype(np.uint8)
+        
+        imageio.mimsave(f'{SAVE_DIR}{"/Nike-{}-{}-Forms-{}.gif".format(self.now, self.episode_reward, num_forms_discovered)}', self.raw_images, duration=1/30)
 
 
     def find_points(self):
@@ -159,7 +189,7 @@ class NikeEnv(gym.Env):
                 last_coordinate = it.multi_index
 
         end_point = last_coordinate
-        start_point = (start_point[0]-1,start_point[1])
+        start_point = (start_point[0]-5,start_point[1]-5)
         end_point = (end_point[0]+1,end_point[1])
 
         return start_point, end_point
@@ -193,6 +223,9 @@ class NikeEnv(gym.Env):
             #cv2.imwrite('landing_new_forms.jpg', self.new_forms)
             self.new_forms = self.remove_form(self.new_forms.copy(),self.last_point)
             self.num_forms_discovered += 1
+            if self.max_forms_discovered < self.num_forms_discovered:
+                self.max_forms_discovered = self.num_forms_discovered
+                self.generate_gif()
             #name = "new_forms-{}.jpg".format(self.nsteps)
             #cv2.imwrite(name, self.new_forms)
         #print('isOnNewForm',isOnNewForm)
@@ -204,6 +237,19 @@ class NikeEnv(gym.Env):
         #print('isEndPoint',isEndPoint)
 
         return isAlreadyVisited, isOnForm, isOnNewForm, isOnPerimeter, isEndForm  
+
+    
+    def process_obs(self, obs):
+        
+        #print('image shape is: ', image.shape)
+        #print('image type is: ', type(image))
+        img_gray = tf.image.rgb_to_grayscale(obs)
+        #cv2.imwrite('image_CarRacing_not_cropped.jpg', img_gray.numpy())
+        #img_cropped = tf.image.crop_to_bounding_box(img_gray, 0, 6, 84, 84)
+
+        #print('img_gray is ', img_gray.shape)
+
+        return img_gray #, img_flipped           
 
 
     def remove_form(self, newforms, point):

@@ -2,3 +2,4 @@ gym_nike.egg-info/
 __pycache__/
 *.pyc
 gym_nike/envs/__pycache__/nike_env.cpython-39.pyc
+gym_nike/envs/__pycache__/nike_env.cpython-39.pyc

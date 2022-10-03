@@ -11,7 +11,7 @@ from datetime import datetime
 
 N_DISCRETE_ACTIONS = 4 #Go up (0), right (1), down (2) and left (3)
 N_CHANNELS = 3
-SAVE_DIR = '/Users/nicolasmaquaire/Workspace/ml/openai_logs/Nike'
+SAVE_DIR = '~/Workspace/ml/openai_logs/Nike'
 
 
 class NikeEnv(gym.Env):
@@ -115,6 +115,8 @@ class NikeEnv(gym.Env):
         self.previous_points = []
         self.last_point = self.start_point
         self.previous_points.append(self.start_point)
+
+        #self.generate_gif()
 
         return self.process_obs(self.observation)  # reward, done, info can't be included
 

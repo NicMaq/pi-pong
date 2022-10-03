@@ -8,6 +8,11 @@ import imageio
 import tensorflow as tf
 from datetime import datetime
 
+import logging
+
+log = logging.getLogger()
+log.setLevel(logging.DEBUG)
+
 
 N_DISCRETE_ACTIONS = 4 #Go up (0), right (1), down (2) and left (3)
 N_CHANNELS = 3
@@ -18,21 +23,27 @@ class NikeEnv(gym.Env):
     """Custom Environment that follows gym interface"""
     #metadata = {'render.modes': ['human']}
 
-    def __init__(self, config):
+    def __init__(self, **kwargs):
 
         super(NikeEnv, self).__init__()
 
         self.now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-
         self.nsteps = 0
+        print("kwargs received by Nike_env are:is: %s " % kwargs )
+        assert 'config' in kwargs, "Invalid mode, must provide a config for this env"
+        config = kwargs['config']
+        log.debug(f'{"Config is: {}".format(config)}')
+        print("Config is: %s " % config )
 
         # Define action and observation space
         self.action_space = spaces.Discrete(N_DISCRETE_ACTIONS)
         # Using a design as input:
         # the decoded images will have the channels stored in B G R order.
         self.observation_init = cv2.imread(config)
-        print(type(self.observation_init))
-        print(self.observation_init.shape)
+
+        log.info(f'{"Observation type is: {}".format(type(self.observation_init))}')
+        log.info(f'{"Observation shape is: {}".format(self.observation_init.shape)}')
+
         self.observation = self.observation_init.copy()
         self.raw_images = []
         self.raw_images.append(self.observation.copy())
@@ -57,7 +68,8 @@ class NikeEnv(gym.Env):
         # The start/stop points are the uppest form point for start the lowest for stop 
         self.start_point, _ = self.find_points()
         #self.start_point = (5, self.width//2)  #self.find_points()
-        print('self.start_point is ', self.start_point)
+        log.info(f'{"self.start_point is: {}".format(self.start_point)}')
+
         #print('self.end_point is ', self.end_point)
         self.last_point = self.start_point
 
@@ -94,8 +106,8 @@ class NikeEnv(gym.Env):
         #    self.generate_gif()        
 
         if done: 
-            print(f'{"Episode ended after {} steps - score is {} ".format(self.nsteps, self.episode_reward)}')
-            print(f'{"Trajectory ended bc: isOnPerimeter={} isEndForm={} ".format(isOnPerimeter, isEndForm)}')
+            log.info(f'{"Episode ended after {} steps - score is {} ".format(self.nsteps, self.episode_reward)}')
+            log.info(f'{"Trajectory ended bc: isOnPerimeter={} isEndForm={} ".format(isOnPerimeter, isEndForm)}')
 
         info = {'steps': self.nsteps, 'discovered_forms': self.num_forms_discovered, 'success': isEndForm}
 
@@ -133,12 +145,6 @@ class NikeEnv(gym.Env):
     def close(self):
         cv2.destroyAllWindows()
 
-        #print('Raw_images #', len(self.raw_images))   
-        #print('self.episode_reward', self.episode_reward )  
-        #for idx, frame_idx in enumerate(self.raw_images): 
-        #    self.raw_images[idx] = resize(frame_idx, (800, 340, 3), preserve_range=True, order=0).astype(np.uint8)
-        #imageio.mimsave('GymNike.gif', self.raw_images, duration=1/30)
-
 
     def calculate_reward(self, isAlreadyVisited, isOnForm, isOnNewForm, isOnPerimeter, isEndForm):
 
@@ -147,26 +153,23 @@ class NikeEnv(gym.Env):
         #if new point already visited then penalty of -100
         if isAlreadyVisited: step_reward += -5        
         #if new point not on form then penalty of -1
-        if not isOnForm: step_reward += -1
+        if not isOnForm: step_reward += -0.1
         #if new point not on form then penalty of -1
-        if isOnForm: step_reward += 1
+        if isOnForm: step_reward += 0.5
         #if new point on perimeter then penalty of -100
-        if isOnPerimeter: step_reward += -100
+        if isOnPerimeter: step_reward += -10
         #if new point on new form then penalty of +10
-        if isOnNewForm: step_reward += 5 + self.num_forms_discovered * 2
+        if isOnNewForm: step_reward += 5 #+ self.num_forms_discovered * 2
         #if new point end_point then penalty of +100
-        if isEndForm: step_reward += 100     
+        if isEndForm: step_reward += 20     
 
         #print('step_reward', step_reward)
 
         return step_reward
 
     def generate_gif(self):
-
-        #for idx, frame_idx in enumerate(frames): 
-        #    frames[idx] = resize(frame_idx, (180, 320, 3), preserve_range=True, order=0).astype(np.uint8)
-        
-        imageio.mimsave(f'{SAVE_DIR}{"/Nike-{}-{}-Forms-{}.gif".format(self.now, self.episode_reward, self.num_forms_discovered)}', self.raw_images, duration=1/30)
+      
+        imageio.mimsave(f'{SAVE_DIR}{"/Nike-{}-{}-Forms-{}.gif".format(self.now, int(self.episode_reward), self.num_forms_discovered)}', self.raw_images, duration=1/30)
 
 
     def find_points(self):

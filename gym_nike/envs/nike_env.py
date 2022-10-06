@@ -157,11 +157,11 @@ class NikeEnv(gym.Env):
         #if new point not on form then penalty of -1
         if not isOnForm: step_reward += -0.1
         #if new point not on form then penalty of -1
-        if isOnForm: step_reward += 0.5
+        if isOnForm: step_reward += 0.0
         #if new point on perimeter then penalty of -100
-        if isOnPerimeter: step_reward += -10
+        if isOnPerimeter: step_reward += -20
         #if new point on new form then penalty of +10
-        if isOnNewForm: step_reward += 5 #+ self.num_forms_discovered * 2
+        if isOnNewForm: step_reward += 10 #+ self.num_forms_discovered * 2
         #if new point end_point then penalty of +100
         if isEndForm: step_reward += 20     
 

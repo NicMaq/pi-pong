@@ -16,7 +16,7 @@ log.setLevel(logging.DEBUG)
 
 N_DISCRETE_ACTIONS = 4 #Go up (0), right (1), down (2) and left (3)
 N_CHANNELS = 3
-SAVE_DIR = '/Users/nicolasmaquaire/Workspace/ml/openai_logs/Nike'
+SAVE_DIR = '~/Workspace/ml/openai_logs/Nike'
 
 
 class NikeEnv(gym.Env):

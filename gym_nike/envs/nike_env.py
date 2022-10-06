@@ -31,7 +31,12 @@ class NikeEnv(gym.Env):
         self.nsteps = 0
         print("kwargs received by Nike_env are:is: %s " % kwargs )
         assert 'config' in kwargs, "Invalid mode, must provide a config for this env"
-        config = kwargs['config']
+        file = kwargs['config']
+        config, extension = file.split(".")
+        print(config)
+        print(extension)
+        self.nconfig = kwargs['nconfig']
+        print(self.nconfig)
         log.debug(f'{"Config is: {}".format(config)}')
         print("Config is: %s " % config )
 
@@ -39,50 +44,57 @@ class NikeEnv(gym.Env):
         self.action_space = spaces.Discrete(N_DISCRETE_ACTIONS)
         # Using a design as input:
         # the decoded images will have the channels stored in B G R order.
-        self.observation_init = cv2.imread(config)
+        self.observation_init = []
+        
+        #self.observation_init.append(cv2.imread(config))
+        for i in range(self.nconfig):
 
-        log.info(f'{"Observation type is: {}".format(type(self.observation_init))}')
-        log.info(f'{"Observation shape is: {}".format(self.observation_init.shape)}')
+            print(f'{"{}_{}.{}".format(config, i, extension)}')          
 
-        self.observation = self.observation_init.copy()
+            #clean image on all channel
+            read_image = cv2.imread(f'{"{}{}.{}".format(config, i, extension)}')
+            cv2.imwrite(f'{SAVE_DIR}{"/read_image-{}-{}.jpg".format(self.now,i)}', read_image)
+            #print('type(read_image)',read_image.dtype)
+
+            self.observation_init.append(read_image)
+
+        self.height = self.observation_init[0].shape[0]
+        self.width = self.observation_init[0].shape[1]
+
+        self.observation_space = spaces.Box(low=0, high=255,
+                                            shape=(self.height, self.width, 1), dtype=np.uint8)            
+
+        log.info(f'{"Observation type is: {}".format(type(self.observation_init[0]))}')
+        log.info(f'{"Observation 0 shape is: {}".format(self.observation_init[0].shape)}')
+
+        #Randomly select which observation to use
+        self.selected_obs = np.random.randint(self.nconfig, size=1)[0]
+        #print('self.selected_obs',self.selected_obs)
+
+        #Extract and randomize the forms
+        self.set_forms()
+        self.observation = self.grey_obs[self.selected_obs].copy()
+        self.new_forms = self.forms[self.selected_obs].copy()
+
         self.raw_images = []
         self.raw_images.append(self.observation.copy())
 
-        self.height = self.observation_init.shape[0]
-        self.width = self.observation_init.shape[1]
-
-        self.observation_space = spaces.Box(low=0, high=255,
-                                            shape=(self.height, self.width, 1), dtype=np.uint8)
-        
-        # The forms are on channel green 
-        self.forms = self.observation[:,:,1].copy()
-        self.forms = np.squeeze(self.forms)
-        self.forms = self.clean(self.forms)
-        self.new_forms = self.forms.copy()
-
-        # The perimeter is on channel red 
-        self.perimeter = self.observation[:,:,2].copy() 
-        self.perimeter = np.squeeze(self.perimeter)
-        self.perimeter = self.clean(self.perimeter)   
-
         # The start/stop points are the uppest form point for start the lowest for stop 
-        self.start_point, _ = self.find_points()
-        #self.start_point = (5, self.width//2)  #self.find_points()
+        #self.start_point, _ = self.find_points()
+        self.start_point = (10, self.width//2)
         log.info(f'{"self.start_point is: {}".format(self.start_point)}')
 
         #print('self.end_point is ', self.end_point)
         self.last_point = self.start_point
+        #print('self.start_point',self.start_point)
 
-        #self.new_forms = self.remove_form(self.new_forms.copy(), self.last_point)
-        #name = "new_forms-{}.jpg".format(self.nsteps)
-        #cv2.imwrite(name, self.new_forms)
-
-        #self.raw_images = []
         self.previous_points = []
         self.previous_points.append(self.start_point)
 
-        self.num_forms_discovered = 0 
-        self.max_forms_discovered = 0
+        self.num_forms_discovered = 0
+        self.max_forms_discovered = [0 for obs in self.observation_init]
+
+        cv2.imwrite(f'{SAVE_DIR}{"/observation-{}-Forms-{}-Steps_{}.jpg".format(self.now, self.num_forms_discovered, self.nsteps)}', self.observation)
                                            
 
     def step(self, action):
@@ -109,26 +121,36 @@ class NikeEnv(gym.Env):
             log.info(f'{"Episode ended after {} steps - score is {} ".format(self.nsteps, self.episode_reward)}')
             log.info(f'{"Trajectory ended bc: isOnPerimeter={} isEndForm={} ".format(isOnPerimeter, isEndForm)}')
 
-        info = {'steps': self.nsteps, 'discovered_forms': self.num_forms_discovered, 'success': isEndForm}
+        info = {'steps': self.nsteps, 'selected_obs': self.selected_obs, 'discovered_forms': self.num_forms_discovered, 'success': isEndForm}
 
-        return self.process_obs(self.observation), step_reward, done, info
+        #cv2.imwrite(f'{SAVE_DIR}{"/returned_Obs-{}-Forms-{}-Steps_{}.jpg".format(self.now, self.num_forms_discovered, self.nsteps)}', self.observation)
+
+        return self.observation, step_reward, done, info
 
 
     def reset(self):
         self.nsteps = 0
-        self.observation = self.observation_init.copy()       
-        self.new_forms = self.forms.copy()
+        self.selected_obs = np.random.randint(self.nconfig, size=1)[0]
+        #print('self.selected_obs',self.selected_obs)
+
+        #Extract and randomize the forms
+        self.set_forms()
+        
+        self.observation = self.grey_obs[self.selected_obs].copy()
+        self.new_forms = self.forms[self.selected_obs].copy()
+
         self.raw_images = []
         self.raw_images.append(self.observation.copy())
-        #self.new_forms = self.remove_form(self.new_forms.copy(), self.last_point)
+
         self.num_forms_discovered = 0
         self.current_length = 0
         self.episode_reward = 0
+
         self.previous_points = []
         self.last_point = self.start_point
         self.previous_points.append(self.start_point)
 
-        return self.process_obs(self.observation)  # reward, done, info can't be included
+        return self.observation  # reward, done, info can't be included
 
 
     def render(self, mode='human'):
@@ -169,7 +191,8 @@ class NikeEnv(gym.Env):
 
     def generate_gif(self):
       
-        imageio.mimsave(f'{SAVE_DIR}{"/Nike-{}-{}-Forms-{}.gif".format(self.now, int(self.episode_reward), self.num_forms_discovered)}', self.raw_images, duration=1/30)
+        self.raw_images = [image.astype('uint8') for image in self.raw_images]
+        imageio.mimsave(f'{SAVE_DIR}{"/Nike-{}-{}-{}-Forms-{}.gif".format(self.now, self.selected_obs, int(self.episode_reward), self.num_forms_discovered)}', self.raw_images, duration=1/30)
 
 
     def find_points(self):
@@ -217,23 +240,23 @@ class NikeEnv(gym.Env):
             self.previous_points.append(self.last_point)
             self.current_length += 1
 
-        isOnForm = (self.forms[self.last_point[0],self.last_point[1]]==255)
+        isOnForm = (self.forms[self.selected_obs][self.last_point[0],self.last_point[1]]==255)
         #print('isOnForm',isOnForm)
-        #print('self.new_forms[self.last_point[0],self.last_point[1]]',self.new_forms[self.last_point[0],self.last_point[1]])
         isOnNewForm =  (self.new_forms[self.last_point[0],self.last_point[1]]==255)
         #print('isOnNewForm',isOnNewForm)
         if isOnNewForm: 
-            #cv2.imwrite('landing_new_forms.jpg', self.new_forms)
-            self.new_forms = self.remove_form(self.new_forms.copy(),self.last_point)
+            #cv2.imwrite(f'{SAVE_DIR}{"/landing_new_forms0-{}-Forms-{}.jpg".format(self.now, self.num_forms_discovered)}', self.new_forms)
+            self.new_forms = self.remove_form(self.new_forms, self.last_point)
+            #cv2.imwrite(f'{SAVE_DIR}{"/landing_new_forms1-{}-Forms-{}.jpg".format(self.now, self.num_forms_discovered)}', self.new_forms)
             self.num_forms_discovered += 1
-            if self.max_forms_discovered < self.num_forms_discovered:
-                self.max_forms_discovered = self.num_forms_discovered
+            if self.max_forms_discovered[self.selected_obs] < self.num_forms_discovered:
+                self.max_forms_discovered[self.selected_obs] = self.num_forms_discovered
                 self.generate_gif()
             #name = "new_forms-{}.jpg".format(self.nsteps)
             #cv2.imwrite(name, self.new_forms)
         #print('isOnNewForm',isOnNewForm)
 
-        isOnPerimeter =  (self.perimeter[self.last_point[0],self.last_point[1]]==255)
+        isOnPerimeter =  (self.perimeters[self.selected_obs][self.last_point[0],self.last_point[1]]==255)
         #print('isOnPerimeter',isOnPerimeter)
 
         isEndForm =  self.IsItLastForm()
@@ -242,17 +265,35 @@ class NikeEnv(gym.Env):
         return isAlreadyVisited, isOnForm, isOnNewForm, isOnPerimeter, isEndForm  
 
     
-    def process_obs(self, obs):
+    def set_forms(self):
+
+        # The forms are on channel green 
+        self.forms = [self.clean(np.squeeze(obs[:,:,1].copy())) for obs in self.observation_init]
+        #print('type(self.forms[0])',self.forms[0].dtype)
         
-        #print('image shape is: ', image.shape)
-        #print('image type is: ', type(image))
-        img_gray = tf.image.rgb_to_grayscale(obs)
-        #cv2.imwrite('image_CarRacing_not_cropped.jpg', img_gray.numpy())
-        #img_cropped = tf.image.crop_to_bounding_box(img_gray, 0, 6, 84, 84)
+        # Moving the forms randomly
+        move_axis_0 = np.random.randint(7, size=1)[0]-3
+        move_axis_1 = np.random.randint(7, size=1)[0]-3
+        self.forms = [np.roll(form, (move_axis_0, move_axis_1), axis=(0, 1)) for form in self.forms]
 
-        #print('img_gray is ', img_gray.shape)
+        self.grey_forms = [np.expand_dims(np.where(a == 255, 80, 0), axis=-1) for a in self.forms]
+        #print('type(self.grey_forms[0])',self.grey_forms[0].dtype)
+        
 
-        return img_gray #, img_flipped           
+        # The perimeter is on channel red 
+        self.perimeters = [self.clean(np.squeeze(obs[:,:,2].copy())) for obs in self.observation_init]
+        self.grey_perimeters = [np.expand_dims(np.where(a == 255, 160, 0), axis=-1) for a in self.perimeters]
+        
+
+        # The observations are build in gray scale
+        self.grey_path = [np.zeros_like(a) for a in self.grey_forms]
+        self.grey_obs = [ a+b+c for a,b,c in zip(self.grey_path, self.grey_forms, self.grey_perimeters)]
+        #print('type(self.grey_obs[0])',self.grey_obs[0].dtype)
+
+        #cv2.imwrite(f'{SAVE_DIR}{"/grey_forms-{}.jpg".format(self.nsteps)}', self.grey_forms[0])
+        #cv2.imwrite(f'{SAVE_DIR}{"/grey_perimeter-{}.jpg".format(self.nsteps)}', self.grey_perimeters[0])
+        #cv2.imwrite(f'{SAVE_DIR}{"/grey_obs-{}.jpg".format(self.nsteps)}', self.grey_obs[0])
+
 
 
     def remove_form(self, newforms, point):
@@ -288,6 +329,7 @@ class NikeEnv(gym.Env):
 
     def clean(self, image):
         clean = image
+
         it = np.nditer(image, flags=['multi_index'])
         for x in it:
             if x>100:

@@ -1,6 +1,6 @@
 import gym
 from gym import spaces
-
+import math
 import numpy as np
 import cv2
 from skimage.transform import resize
@@ -27,7 +27,7 @@ class PongEnv(gym.Env):
 
     class Paddle():
 
-        def __init__(self, **kwargs):
+        def __init__(self):
 
             self.size = 3
             self.location = 4
@@ -47,6 +47,63 @@ class PongEnv(gym.Env):
 
             return _states
 
+    class Ball():
+
+        def __init__(self, init_pos, init_vector, scale):
+
+            self.location_init = init_pos
+            self.location = self.location_init
+            self.vector_init = init_vector
+            self.vector = self.vector_init
+            self.scale = scale
+            _angle = 0.6
+            self.rotation_left = [[math.cos(_angle), -math.sin(_angle)][math.sin(_angle), math.cos(_angle)]]
+            self.rotation_right = [[math.cos(-_angle), -math.sin(-_angle)][math.sin(-_angle), math.cos(-_angle)]]
+        
+        def move(self, states):
+
+            is_out, is_collided = False, False
+
+            _move = self.scale * self.vector
+            _slope = _move[1]/_move[0]
+
+            #The ball is moving down
+            if _move[1] > 0: 
+
+                #The ball reflects on the wall
+                if self.location[0] + _move[0] < 0:
+                if self.location[0] + _move[0] > 7:
+
+                #The ball moves beyond the paddle
+                if self.location[1] + _move[1] >= 6:
+                    #Does it collided with the Paddle
+                    x_on_paddle_line_is = int((6-self.location[1]+_slope*self.location[0])/_slope)
+                    is_collided = (states[6][x_on_paddle_line_is] == 1)
+                    is_out = (int(_move[1] + self.location[1])>= 7)
+                     
+                    #If collided, the ball bounces on the padlle
+                    if is_collided: 
+                        #If the ball touches the paddle on the left or the right then the reflection is modified
+                        _residual_move = 
+                        self.location =
+                        self.vector = 
+                    #If not 
+                    if is_out: 
+                        self.location = self.location_init
+                        self.vector = self.vector_init
+                    else: 
+                        self.location = self.location + _move
+
+                if self.location[1] + _move[1] <= 1:
+
+            #The ball is moving up
+            else:
+                pass
+
+
+
+
+            return is_out, is_collided            
 
 
     def __init__(self, **kwargs):
